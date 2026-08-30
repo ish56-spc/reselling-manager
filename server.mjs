@@ -1,7 +1,6 @@
 import "dotenv/config";
 import express from "express";
 import Database from "better-sqlite3";
-import path from "path";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -10,11 +9,6 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.static("public"));
 
 const db = new Database("reselling.db");
-
-// ----------------------------------------------------
-// DATABASE
-// ----------------------------------------------------
-
 db.pragma("journal_mode = WAL");
 
 db.exec(`
@@ -22,12 +16,12 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     generation TEXT NOT NULL,
-    model_number TEXT,
-    condition TEXT DEFAULT 'Working',
+    model_number TEXT DEFAULT '',
+    condition TEXT NOT NULL DEFAULT 'B Grade',
     quantity INTEGER NOT NULL DEFAULT 1,
     unit_cost REAL NOT NULL DEFAULT 0,
-    cex_cash_value REAL DEFAULT 0,
-    cex_voucher_value REAL DEFAULT 0,
+    cex_cash_value REAL NOT NULL DEFAULT 0,
+    cex_voucher_value REAL NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -51,47 +45,67 @@ db.exec(`
   );
 `);
 
-// ----------------------------------------------------
-// HELPERS
-// ----------------------------------------------------
-
-function nextSaleNumber() {
-  const row = db
-    .prepare("SELECT MAX(sale_number) AS max FROM sales")
-    .get();
-
-  return (row?.max || 0) + 1;
-}
-
 function now() {
   return new Date().toISOString();
 }
 
-// ----------------------------------------------------
-// DASHBOARD
-// ----------------------------------------------------
+function money(value) {
+  return Number(value || 0);
+}
+
+function nextSaleNumber() {
+  const row = db.prepare(
+    "SELECT MAX(sale_number) AS max FROM sales"
+  ).get();
+
+  return Number(row?.max || 0) + 1;
+}
+
+function availableStock(stockId) {
+  const stock = db.prepare(
+    "SELECT quantity FROM stock WHERE id = ?"
+  ).get(stockId);
+
+  if (!stock) return 0;
+
+  const allocated = db.prepare(`
+    SELECT COALESCE(
+      SUM(quantity - returned_quantity), 0
+    ) AS total
+    FROM sale_items
+    WHERE stock_id = ?
+  `).get(stockId);
+
+  return stock.quantity - Number(allocated.total || 0);
+}
+
+/* DASHBOARD */
 
 app.get("/api/dashboard", (req, res) => {
   try {
     const stock = db.prepare(`
       SELECT
-        COALESCE(SUM(quantity), 0) AS units,
-        COALESCE(SUM(quantity * unit_cost), 0) AS cost,
-        COALESCE(SUM(quantity * cex_cash_value), 0) AS cexCash,
-        COALESCE(SUM(quantity * cex_voucher_value), 0) AS cexVoucher
+        COALESCE(SUM(quantity), 0) units,
+        COALESCE(SUM(quantity * unit_cost), 0) cost,
+        COALESCE(SUM(quantity * cex_cash_value), 0) cexCash,
+        COALESCE(SUM(quantity * cex_voucher_value), 0) cexVoucher
       FROM stock
     `).get();
 
     const sales = db.prepare(`
       SELECT
-        COUNT(*) AS sales,
+        COUNT(*) sales,
         COALESCE(SUM(
           (
-            SELECT SUM(si.quantity * si.sale_price_each)
-            FROM sale_items si
-            WHERE si.sale_id = sales.id
+            SELECT COALESCE(
+              SUM(
+                (quantity - returned_quantity) * sale_price_each
+              ), 0
+            )
+            FROM sale_items
+            WHERE sale_id = sales.id
           )
-        ), 0) AS revenue
+        ), 0) revenue
       FROM sales
       WHERE status = 'Paid'
     `).get();
@@ -100,26 +114,32 @@ app.get("/api/dashboard", (req, res) => {
       SELECT COALESCE(SUM(
         (si.quantity - si.returned_quantity) *
         (si.sale_price_each - s.unit_cost)
-      ), 0) AS profit
+      ), 0) profit
       FROM sale_items si
       JOIN sales sa ON sa.id = si.sale_id
       JOIN stock s ON s.id = si.stock_id
       WHERE sa.status = 'Paid'
     `).get();
 
+    const stockPotential = db.prepare(`
+      SELECT COALESCE(SUM(
+        quantity * (cex_cash_value - unit_cost)
+      ), 0) value
+      FROM stock
+    `).get();
+
     res.json({
       stock,
       sales,
-      profit: profit.profit
+      profit: money(profit.profit),
+      potentialStockProfit: money(stockPotential.value)
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// ----------------------------------------------------
-// STOCK
-// ----------------------------------------------------
+/* STOCK */
 
 app.get("/api/stock", (req, res) => {
   try {
@@ -151,6 +171,13 @@ app.get("/api/stock", (req, res) => {
       `).all();
     }
 
+    rows = rows.map(row => ({
+      ...row,
+      available_quantity: availableStock(row.id),
+      allocated_quantity:
+        row.quantity - availableStock(row.id)
+    }));
+
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -162,8 +189,8 @@ app.post("/api/stock", (req, res) => {
     const {
       name,
       generation,
-      model_number,
-      condition = "Working",
+      model_number = "",
+      condition = "B Grade",
       quantity = 1,
       unit_cost = 0,
       cex_cash_value = 0,
@@ -172,13 +199,13 @@ app.post("/api/stock", (req, res) => {
 
     if (!name || !generation) {
       return res.status(400).json({
-        error: "Name and generation are required."
+        error: "Product and variant are required."
       });
     }
 
-    if (quantity <= 0) {
+    if (!Number.isInteger(Number(quantity)) || Number(quantity) <= 0) {
       return res.status(400).json({
-        error: "Quantity must be greater than zero."
+        error: "Quantity must be a positive whole number."
       });
     }
 
@@ -197,7 +224,7 @@ app.post("/api/stock", (req, res) => {
     `).run(
       name,
       generation,
-      model_number || "",
+      model_number,
       condition,
       Number(quantity),
       Number(unit_cost),
@@ -214,13 +241,46 @@ app.post("/api/stock", (req, res) => {
   }
 });
 
-// ----------------------------------------------------
-// CREATE SALE
-// ----------------------------------------------------
+/* DELETE STOCK
+   Only permitted if none of the stock is allocated to a sale.
+*/
+
+app.delete("/api/stock/:id", (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const available = availableStock(id);
+
+    const stock = db.prepare(
+      "SELECT quantity FROM stock WHERE id = ?"
+    ).get(id);
+
+    if (!stock) {
+      return res.status(404).json({
+        error: "Stock item not found."
+      });
+    }
+
+    if (available !== stock.quantity) {
+      return res.status(400).json({
+        error: "This stock is allocated to a sale and cannot be deleted."
+      });
+    }
+
+    db.prepare(
+      "DELETE FROM stock WHERE id = ?"
+    ).run(id);
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/* SALES */
 
 app.post("/api/sales", (req, res) => {
   try {
-    const saleNumber = nextSaleNumber();
+    const number = nextSaleNumber();
 
     const result = db.prepare(`
       INSERT INTO sales (
@@ -229,49 +289,54 @@ app.post("/api/sales", (req, res) => {
         status
       )
       VALUES (?, ?, 'Draft')
-    `).run(saleNumber, now());
+    `).run(number, now());
 
     res.json({
       success: true,
       id: result.lastInsertRowid,
-      saleNumber
+      saleNumber: number
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// ----------------------------------------------------
-// SALES LIST
-// ----------------------------------------------------
-
 app.get("/api/sales", (req, res) => {
   try {
     const sales = db.prepare(`
       SELECT *
       FROM sales
-      ORDER BY id DESC
+      ORDER BY created_at DESC, id DESC
     `).all();
 
-    const result = sales.map((sale) => {
-      const data = db.prepare(`
+    const result = sales.map(sale => {
+      const stats = db.prepare(`
         SELECT
-          COALESCE(SUM(si.quantity * si.sale_price_each), 0) AS revenue,
           COALESCE(SUM(
-            (si.quantity - si.returned_quantity) *
-            (si.sale_price_each - s.unit_cost)
-          ), 0) AS profit,
-          COALESCE(SUM(si.returned_quantity), 0) AS returned_units
-        FROM sale_items si
-        JOIN stock s ON s.id = si.stock_id
-        WHERE si.sale_id = ?
+            (quantity - returned_quantity)
+            * sale_price_each
+          ), 0) revenue,
+
+          COALESCE(SUM(returned_quantity), 0) returned_units,
+
+          COALESCE(SUM(
+            (quantity - returned_quantity) *
+            (sale_price_each - stock.unit_cost)
+          ), 0) profit
+
+        FROM sale_items
+
+        JOIN stock
+          ON stock.id = sale_items.stock_id
+
+        WHERE sale_id = ?
       `).get(sale.id);
 
       return {
         ...sale,
-        revenue: data.revenue,
-        profit: data.profit,
-        returned_units: data.returned_units
+        revenue: money(stats.revenue),
+        returned_units: Number(stats.returned_units || 0),
+        profit: money(stats.profit)
       };
     });
 
@@ -280,10 +345,6 @@ app.get("/api/sales", (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
-// ----------------------------------------------------
-// SINGLE SALE
-// ----------------------------------------------------
 
 app.get("/api/sales/:id", (req, res) => {
   try {
@@ -301,15 +362,17 @@ app.get("/api/sales/:id", (req, res) => {
 
     const items = db.prepare(`
       SELECT
-        si.*,
-        s.name,
-        s.generation,
-        s.model_number,
-        s.unit_cost
-      FROM sale_items si
-      JOIN stock s ON s.id = si.stock_id
-      WHERE si.sale_id = ?
-      ORDER BY si.id
+        sale_items.*,
+        stock.name,
+        stock.generation,
+        stock.model_number,
+        stock.condition,
+        stock.unit_cost
+      FROM sale_items
+      JOIN stock
+        ON stock.id = sale_items.stock_id
+      WHERE sale_id = ?
+      ORDER BY sale_items.id
     `).all(req.params.id);
 
     res.json({
@@ -321,24 +384,21 @@ app.get("/api/sales/:id", (req, res) => {
   }
 });
 
-// ----------------------------------------------------
-// ADD ITEM TO SALE
-// ----------------------------------------------------
+/* ADD ITEM */
 
 app.post("/api/sales/:id/items", (req, res) => {
   try {
     const saleId = Number(req.params.id);
+
     const {
       stock_id,
       quantity,
       sale_price_each
     } = req.body;
 
-    const sale = db.prepare(`
-      SELECT *
-      FROM sales
-      WHERE id = ?
-    `).get(saleId);
+    const sale = db.prepare(
+      "SELECT * FROM sales WHERE id = ?"
+    ).get(saleId);
 
     if (!sale) {
       return res.status(404).json({
@@ -346,17 +406,15 @@ app.post("/api/sales/:id/items", (req, res) => {
       });
     }
 
-    if (sale.status === "Paid") {
+    if (sale.status !== "Draft") {
       return res.status(400).json({
-        error: "Paid sales cannot be edited."
+        error: "Only draft sales can be edited."
       });
     }
 
-    const stock = db.prepare(`
-      SELECT *
-      FROM stock
-      WHERE id = ?
-    `).get(stock_id);
+    const stock = db.prepare(
+      "SELECT * FROM stock WHERE id = ?"
+    ).get(stock_id);
 
     if (!stock) {
       return res.status(404).json({
@@ -365,26 +423,26 @@ app.post("/api/sales/:id/items", (req, res) => {
     }
 
     const qty = Number(quantity);
+    const price = Number(sale_price_each);
 
-    if (qty <= 0) {
+    if (!Number.isInteger(qty) || qty <= 0) {
       return res.status(400).json({
-        error: "Quantity must be greater than zero."
+        error: "Quantity must be a positive whole number."
       });
     }
 
-    // How much of this stock row is already allocated
-    const allocated = db.prepare(`
-      SELECT COALESCE(SUM(quantity - returned_quantity), 0) AS amount
-      FROM sale_items
-      WHERE stock_id = ?
-    `).get(stock_id);
+    if (!Number.isFinite(price) || price < 0) {
+      return res.status(400).json({
+        error: "Invalid sale price."
+      });
+    }
 
-    const available =
-      stock.quantity - Number(allocated.amount || 0);
+    const available = availableStock(stock_id);
 
     if (qty > available) {
       return res.status(400).json({
-        error: `Only ${available} available.`
+        error:
+          `Only ${available} unit${available === 1 ? "" : "s"} available.`
       });
     }
 
@@ -401,7 +459,7 @@ app.post("/api/sales/:id/items", (req, res) => {
       saleId,
       stock_id,
       qty,
-      Number(sale_price_each)
+      price
     );
 
     res.json({ success: true });
@@ -410,22 +468,19 @@ app.post("/api/sales/:id/items", (req, res) => {
   }
 });
 
-// ----------------------------------------------------
-// REMOVE ITEM FROM DRAFT SALE
-// ----------------------------------------------------
+/* REMOVE DRAFT ITEM */
 
 app.delete("/api/sales/items/:itemId", (req, res) => {
   try {
-    const itemId = Number(req.params.itemId);
-
     const item = db.prepare(`
       SELECT
-        si.*,
-        sa.status
-      FROM sale_items si
-      JOIN sales sa ON sa.id = si.sale_id
-      WHERE si.id = ?
-    `).get(itemId);
+        sale_items.*,
+        sales.status
+      FROM sale_items
+      JOIN sales
+        ON sales.id = sale_items.sale_id
+      WHERE sale_items.id = ?
+    `).get(req.params.itemId);
 
     if (!item) {
       return res.status(404).json({
@@ -433,16 +488,15 @@ app.delete("/api/sales/items/:itemId", (req, res) => {
       });
     }
 
-    if (item.status === "Paid") {
+    if (item.status !== "Draft") {
       return res.status(400).json({
-        error: "Paid sales cannot be edited."
+        error: "Only draft sale items can be removed."
       });
     }
 
-    db.prepare(`
-      DELETE FROM sale_items
-      WHERE id = ?
-    `).run(itemId);
+    db.prepare(
+      "DELETE FROM sale_items WHERE id = ?"
+    ).run(req.params.itemId);
 
     res.json({ success: true });
   } catch (error) {
@@ -450,23 +504,37 @@ app.delete("/api/sales/items/:itemId", (req, res) => {
   }
 });
 
-// ----------------------------------------------------
-// MARK SALE AS PAID
-// ----------------------------------------------------
+/* PAY */
 
 app.post("/api/sales/:id/pay", (req, res) => {
   try {
     const saleId = Number(req.params.id);
 
-    const items = db.prepare(`
-      SELECT *
+    const sale = db.prepare(
+      "SELECT * FROM sales WHERE id = ?"
+    ).get(saleId);
+
+    if (!sale) {
+      return res.status(404).json({
+        error: "Sale not found."
+      });
+    }
+
+    if (sale.status !== "Draft") {
+      return res.status(400).json({
+        error: "This sale is not a draft."
+      });
+    }
+
+    const count = db.prepare(`
+      SELECT COUNT(*) count
       FROM sale_items
       WHERE sale_id = ?
-    `).all(saleId);
+    `).get(saleId);
 
-    if (items.length === 0) {
+    if (!Number(count.count)) {
       return res.status(400).json({
-        error: "You cannot pay an empty sale."
+        error: "Cannot complete an empty sale."
       });
     }
 
@@ -484,17 +552,38 @@ app.post("/api/sales/:id/pay", (req, res) => {
   }
 });
 
-// ----------------------------------------------------
-// CANCEL SALE
-// ----------------------------------------------------
+/* CANCEL SALE */
 
 app.post("/api/sales/:id/cancel", (req, res) => {
   try {
+    const saleId = Number(req.params.id);
+
+    const sale = db.prepare(
+      "SELECT * FROM sales WHERE id = ?"
+    ).get(saleId);
+
+    if (!sale) {
+      return res.status(404).json({
+        error: "Sale not found."
+      });
+    }
+
+    if (sale.status === "Cancelled") {
+      return res.json({ success: true });
+    }
+
     db.prepare(`
       UPDATE sales
       SET status = 'Cancelled'
       WHERE id = ?
-    `).run(req.params.id);
+    `).run(saleId);
+
+    /*
+      We intentionally keep the sale_items rows.
+      Because availableStock() only counts items belonging
+      to active sales, cancelling the sale automatically
+      makes every allocated unit available again.
+    */
 
     res.json({ success: true });
   } catch (error) {
@@ -502,23 +591,55 @@ app.post("/api/sales/:id/cancel", (req, res) => {
   }
 });
 
-// ----------------------------------------------------
-// RETURNS
-// ----------------------------------------------------
+/* VOID PAID SALE */
+
+app.post("/api/sales/:id/void", (req, res) => {
+  try {
+    const saleId = Number(req.params.id);
+
+    const sale = db.prepare(
+      "SELECT * FROM sales WHERE id = ?"
+    ).get(saleId);
+
+    if (!sale) {
+      return res.status(404).json({
+        error: "Sale not found."
+      });
+    }
+
+    if (sale.status !== "Paid") {
+      return res.status(400).json({
+        error: "Only paid sales can be voided."
+      });
+    }
+
+    db.prepare(`
+      UPDATE sales
+      SET status = 'Voided'
+      WHERE id = ?
+    `).run(saleId);
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/* RETURNS */
 
 app.post("/api/sales/items/:itemId/return", (req, res) => {
   try {
-    const itemId = Number(req.params.itemId);
     const quantity = Number(req.body.quantity);
 
     const item = db.prepare(`
       SELECT
-        si.*,
-        sa.status
-      FROM sale_items si
-      JOIN sales sa ON sa.id = si.sale_id
-      WHERE si.id = ?
-    `).get(itemId);
+        sale_items.*,
+        sales.status
+      FROM sale_items
+      JOIN sales
+        ON sales.id = sale_items.sale_id
+      WHERE sale_items.id = ?
+    `).get(req.params.itemId);
 
     if (!item) {
       return res.status(404).json({
@@ -535,61 +656,74 @@ app.post("/api/sales/items/:itemId/return", (req, res) => {
     const remaining =
       item.quantity - item.returned_quantity;
 
-    if (quantity <= 0 || quantity > remaining) {
+    if (
+      !Number.isInteger(quantity) ||
+      quantity <= 0 ||
+      quantity > remaining
+    ) {
       return res.status(400).json({
-        error: `You can return between 1 and ${remaining}.`
+        error:
+          `Return quantity must be between 1 and ${remaining}.`
       });
     }
 
     db.prepare(`
       UPDATE sale_items
-      SET returned_quantity = returned_quantity + ?
+      SET returned_quantity =
+        returned_quantity + ?
       WHERE id = ?
-    `).run(quantity, itemId);
+    `).run(
+      quantity,
+      req.params.itemId
+    );
 
     res.json({
-      success: true,
-      returned: quantity
+      success: true
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// ----------------------------------------------------
-// MONTHLY SALES
-// ----------------------------------------------------
+/* MONTHLY PROFIT */
 
 app.get("/api/monthly-sales", (req, res) => {
   try {
     const rows = db.prepare(`
       SELECT
-        strftime('%Y-%m', sa.created_at) AS month,
-        COUNT(DISTINCT sa.id) AS sales,
+        strftime('%Y-%m', sales.created_at) month,
+
+        COUNT(DISTINCT sales.id) sales,
 
         COALESCE(SUM(
-          (si.quantity - si.returned_quantity)
-          * si.sale_price_each
-        ), 0) AS revenue,
+          (sale_items.quantity - sale_items.returned_quantity)
+          * sale_items.sale_price_each
+        ), 0) revenue,
 
         COALESCE(SUM(
-          (si.quantity - si.returned_quantity)
-          * (si.sale_price_each - s.unit_cost)
-        ), 0) AS profit,
+          (sale_items.quantity - sale_items.returned_quantity) *
+          (
+            sale_items.sale_price_each -
+            stock.unit_cost
+          )
+        ), 0) profit,
 
-        COALESCE(SUM(si.returned_quantity), 0) AS returns
+        COALESCE(
+          SUM(sale_items.returned_quantity),
+          0
+        ) returns
 
-      FROM sales sa
+      FROM sales
 
-      LEFT JOIN sale_items si
-        ON si.sale_id = sa.id
+      LEFT JOIN sale_items
+        ON sale_items.sale_id = sales.id
 
-      LEFT JOIN stock s
-        ON s.id = si.stock_id
+      LEFT JOIN stock
+        ON stock.id = sale_items.stock_id
 
-      WHERE sa.status = 'Paid'
+      WHERE sales.status = 'Paid'
 
-      GROUP BY strftime('%Y-%m', sa.created_at)
+      GROUP BY strftime('%Y-%m', sales.created_at)
 
       ORDER BY month DESC
     `).all();
@@ -600,10 +734,16 @@ app.get("/api/monthly-sales", (req, res) => {
   }
 });
 
-// ----------------------------------------------------
-// START
-// ----------------------------------------------------
+/* CATCH ALL */
+
+app.use((req, res) => {
+  res.sendFile(
+    process.cwd() + "/public/index.html"
+  );
+});
 
 app.listen(PORT, () => {
-  console.log(`Reselling Manager running on port ${PORT}`);
+  console.log(
+    `Reselling Manager running on port ${PORT}`
+  );
 });
