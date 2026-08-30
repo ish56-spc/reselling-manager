@@ -1,0 +1,2307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Reselling Manager</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg: #08090b;
+      --panel: #111318;
+      --panel2: #171a20;
+      --border: #272b33;
+      --text: #f5f7fa;
+      --muted: #969da8;
+      --accent: #ffffff;
+      --green: #72e0a1;
+      --red: #ff7777;
+      --yellow: #ffd36b;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family:
+        Inter,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .app {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* SIDEBAR */
+
+    .sidebar {
+      width: 235px;
+      border-right: 1px solid var(--border);
+      background: #0d0f12;
+      padding: 22px 16px;
+      position: fixed;
+      inset: 0 auto 0 0;
+    }
+
+    .logo {
+      font-size: 19px;
+      font-weight: 800;
+      margin-bottom: 28px;
+      padding: 0 8px;
+    }
+
+    .nav {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .nav button {
+      width: 100%;
+      text-align: left;
+      background: transparent;
+      color: var(--muted);
+      border: 0;
+      padding: 12px 12px;
+      border-radius: 10px;
+    }
+
+    .nav button:hover,
+    .nav button.active {
+      background: var(--panel2);
+      color: var(--text);
+    }
+
+    .main {
+      margin-left: 235px;
+      width: calc(100% - 235px);
+      padding: 28px;
+      max-width: 1450px;
+    }
+
+    /* GENERAL */
+
+    .page {
+      display: none;
+    }
+
+    .page.active {
+      display: block;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    h1 {
+      font-size: 30px;
+      margin-bottom: 6px;
+    }
+
+    h2 {
+      font-size: 22px;
+    }
+
+    h3 {
+      font-size: 16px;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .grid-4 {
+      grid-template-columns: repeat(4, 1fr);
+    }
+
+    .grid-3 {
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    .grid-2 {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 15px;
+      padding: 18px;
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .metric-value {
+      font-size: 28px;
+      font-weight: 800;
+      margin-top: 8px;
+    }
+
+    .positive {
+      color: var(--green);
+    }
+
+    .negative {
+      color: var(--red);
+    }
+
+    /* BUTTONS */
+
+    .btn {
+      border: 1px solid var(--border);
+      background: var(--panel2);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 10px 14px;
+    }
+
+    .btn:hover {
+      background: #20242b;
+    }
+
+    .btn.primary {
+      background: white;
+      color: #0b0c0f;
+      border-color: white;
+      font-weight: 700;
+    }
+
+    .btn.danger {
+      color: #ff9a9a;
+    }
+
+    /* TABLE */
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      padding: 13px 10px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    /* FORMS */
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field label {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .field input,
+    .field select {
+      background: #0e1115;
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 9px;
+      padding: 11px;
+      outline: none;
+    }
+
+    .field input:focus,
+    .field select:focus {
+      border-color: #59616e;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+    }
+
+    /* SALE */
+
+    .sale-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 15px;
+      margin-bottom: 16px;
+    }
+
+    .sale-number {
+      font-size: 25px;
+      font-weight: 800;
+    }
+
+    .status {
+      display: inline-flex;
+      padding: 5px 9px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .status.draft {
+      background: #29251a;
+      color: var(--yellow);
+    }
+
+    .status.paid {
+      background: #162a20;
+      color: var(--green);
+    }
+
+    .status.cancelled {
+      background: #2b1818;
+      color: var(--red);
+    }
+
+    /* MODAL */
+
+    .modal-bg {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.72);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 10;
+    }
+
+    .modal-bg.open {
+      display: flex;
+    }
+
+    .modal {
+      width: min(650px, 100%);
+      max-height: 90vh;
+      overflow: auto;
+      background: #111419;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 22px;
+    }
+
+    /* MOBILE */
+
+    @media (max-width: 1000px) {
+      .grid-4 {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .grid-3 {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 700px) {
+      .sidebar {
+        position: static;
+        width: 100%;
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .app {
+        flex-direction: column;
+      }
+
+      .nav {
+        flex-direction: row;
+        overflow-x: auto;
+      }
+
+      .nav button {
+        min-width: max-content;
+      }
+
+      .main {
+        margin-left: 0;
+        width: 100%;
+        padding: 18px;
+      }
+
+      .grid-4,
+      .grid-3,
+      .grid-2,
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="app">
+
+  <!-- SIDEBAR -->
+
+  <aside class="sidebar">
+
+    <div class="logo">
+      Reselling Manager
+    </div>
+
+    <div class="nav">
+
+      <button class="active" onclick="showPage('dashboard', this)">
+        📊 Dashboard
+      </button>
+
+      <button onclick="showPage('stock', this)">
+        📦 Stockpile
+      </button>
+
+      <button onclick="showPage('sales', this)">
+        🧾 Sales
+      </button>
+
+      <button onclick="showPage('returns', this)">
+        ↩️ Returns
+      </button>
+
+      <button onclick="showPage('profit', this)">
+        💰 Profit
+      </button>
+
+      <button onclick="showPage('cex', this)">
+        💷 CeX Value
+      </button>
+
+    </div>
+
+  </aside>
+
+
+  <main class="main">
+
+    <!-- DASHBOARD -->
+
+    <section id="dashboard" class="page active">
+
+      <h1>Dashboard</h1>
+
+      <p class="muted">
+        Your reselling business at a glance.
+      </p>
+
+      <br>
+
+      <div class="grid grid-4">
+
+        <div class="card">
+          <div class="metric-label">
+            Stock units
+          </div>
+
+          <div id="dashStockUnits" class="metric-value">
+            0
+          </div>
+        </div>
+
+
+        <div class="card">
+          <div class="metric-label">
+            Stock cost
+          </div>
+
+          <div id="dashStockCost" class="metric-value">
+            £0.00
+          </div>
+        </div>
+
+
+        <div class="card">
+          <div class="metric-label">
+            CeX cash value
+          </div>
+
+          <div id="dashCexValue" class="metric-value">
+            £0.00
+          </div>
+        </div>
+
+
+        <div class="card">
+          <div class="metric-label">
+            Realised profit
+          </div>
+
+          <div id="dashProfit" class="metric-value positive">
+            £0.00
+          </div>
+        </div>
+
+      </div>
+
+      <br>
+
+      <div class="grid grid-3">
+
+        <div class="card">
+          <div class="metric-label">
+            Paid sales
+          </div>
+
+          <div id="dashSales" class="metric-value">
+            0
+          </div>
+        </div>
+
+
+        <div class="card">
+          <div class="metric-label">
+            Revenue
+          </div>
+
+          <div id="dashRevenue" class="metric-value">
+            £0.00
+          </div>
+        </div>
+
+
+        <div class="card">
+          <div class="metric-label">
+            Potential stock profit
+          </div>
+
+          <div id="dashPotentialProfit" class="metric-value positive">
+            £0.00
+          </div>
+        </div>
+
+      </div>
+
+      <br>
+
+      <div class="card">
+
+        <div class="sale-header">
+          <div>
+            <h2 style="margin-bottom:5px;">
+              Recent sales
+            </h2>
+
+            <div class="muted">
+              Your latest transactions.
+            </div>
+          </div>
+
+          <button class="btn" onclick="showPage('sales')">
+            View all
+          </button>
+        </div>
+
+        <div id="recentSales">
+          Loading...
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- STOCK -->
+
+    <section id="stock" class="page">
+
+      <div class="sale-header">
+
+        <div>
+          <h1>Stockpile</h1>
+
+          <p class="muted">
+            Your available inventory.
+          </p>
+        </div>
+
+        <button class="btn primary" onclick="openStockModal()">
+          + Add stock
+        </button>
+
+      </div>
+
+
+      <div class="card">
+
+        <div class="search">
+          <input
+            id="stockSearch"
+            placeholder="Search AirPods, generation or model number..."
+            oninput="loadStock()"
+            style="width:100%;background:#0e1115;border:1px solid var(--border);color:white;padding:12px;border-radius:10px;"
+          >
+        </div>
+
+        <br>
+
+        <div class="table-wrap">
+
+          <table>
+
+            <thead>
+
+              <tr>
+                <th>Item</th>
+                <th>Generation</th>
+                <th>Model</th>
+                <th>Condition</th>
+                <th>Qty</th>
+                <th>Cost each</th>
+                <th>CeX cash</th>
+                <th>Total value</th>
+              </tr>
+
+            </thead>
+
+            <tbody id="stockTable">
+            </tbody>
+
+          </table>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- SALES -->
+
+    <section id="sales" class="page">
+
+      <div class="sale-header">
+
+        <div>
+          <h1>Sales</h1>
+
+          <p class="muted">
+            Create, manage and track every sale.
+          </p>
+        </div>
+
+        <button class="btn primary" onclick="createSale()">
+          + Create sale
+        </button>
+
+      </div>
+
+
+      <div id="salesList">
+        Loading...
+      </div>
+
+    </section>
+
+
+    <!-- RETURNS -->
+
+    <section id="returns" class="page">
+
+      <h1>Returns</h1>
+
+      <p class="muted">
+        Items returned from completed sales are automatically returned to available stock.
+      </p>
+
+      <br>
+
+      <div class="card">
+
+        <h3>
+          Return an item
+        </h3>
+
+        <p class="muted">
+          Open a completed sale from the Sales page to record a CeX return.
+        </p>
+
+      </div>
+
+    </section>
+
+
+    <!-- PROFIT -->
+
+    <section id="profit" class="page">
+
+      <h1>Profit Tracker</h1>
+
+      <p class="muted">
+        Monthly performance after returns.
+      </p>
+
+      <br>
+
+      <div id="monthlyProfit">
+        Loading...
+      </div>
+
+    </section>
+
+
+    <!-- CEX -->
+
+    <section id="cex" class="page">
+
+      <h1>CeX Valuation</h1>
+
+      <p class="muted">
+        Current estimated CeX value of your unsold stock.
+      </p>
+
+      <br>
+
+      <div class="grid grid-2">
+
+        <div class="card">
+
+          <div class="metric-label">
+            CeX cash value
+          </div>
+
+          <div id="cexCash" class="metric-value">
+            £0.00
+          </div>
+
+        </div>
+
+
+        <div class="card">
+
+          <div class="metric-label">
+            CeX voucher value
+          </div>
+
+          <div id="cexVoucher" class="metric-value">
+            £0.00
+          </div>
+
+        </div>
+
+      </div>
+
+      <br>
+
+      <div class="card">
+
+        <h3>
+          Stock valuation
+        </h3>
+
+        <div id="cexTable">
+          Loading...
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+</div>
+
+
+<!-- ADD STOCK MODAL -->
+
+<div id="stockModal" class="modal-bg">
+
+  <div class="modal">
+
+    <div class="sale-header">
+
+      <h2>
+        Add stock
+      </h2>
+
+      <button class="btn" onclick="closeStockModal()">
+        ✕
+      </button>
+
+    </div>
+
+
+    <div class="form-grid">
+
+      <div class="field">
+        <label>Item name</label>
+        <input id="stockName" placeholder="AirPods Pro 2">
+      </div>
+
+
+      <div class="field">
+        <label>Generation</label>
+        <input id="stockGeneration" placeholder="2nd Gen">
+      </div>
+
+
+      <div class="field">
+        <label>Model number</label>
+        <input id="stockModel" placeholder="A2698">
+      </div>
+
+
+      <div class="field">
+        <label>Condition</label>
+
+        <select id="stockCondition">
+
+          <option>Working</option>
+          <option>Used - Good</option>
+          <option>Used - Fair</option>
+          <option>For parts</option>
+
+        </select>
+
+      </div>
+
+
+      <div class="field">
+        <label>Quantity</label>
+        <input id="stockQuantity" type="number" min="1" value="1">
+      </div>
+
+
+      <div class="field">
+        <label>Purchase cost each (£)</label>
+        <input id="stockCost" type="number" min="0" step="0.01" value="0">
+      </div>
+
+
+      <div class="field">
+        <label>CeX cash value each (£)</label>
+        <input id="stockCexCash" type="number" min="0" step="0.01" value="0">
+      </div>
+
+
+      <div class="field">
+        <label>CeX voucher value each (£)</label>
+        <input id="stockCexVoucher" type="number" min="0" step="0.01" value="0">
+      </div>
+
+    </div>
+
+
+    <div class="actions">
+
+      <button class="btn" onclick="closeStockModal()">
+        Cancel
+      </button>
+
+      <button class="btn primary" onclick="addStock()">
+        Add stock
+      </button>
+
+    </div>
+
+  </div>
+
+</div>
+
+
+<!-- SALE MODAL -->
+
+<div id="saleModal" class="modal-bg">
+
+  <div class="modal">
+
+    <div class="sale-header">
+
+      <div>
+        <div id="saleModalNumber" class="sale-number">
+          Sale
+        </div>
+
+        <div id="saleModalDate" class="muted">
+        </div>
+      </div>
+
+      <button class="btn" onclick="closeSaleModal()">
+        ✕
+      </button>
+
+    </div>
+
+
+    <div id="saleItems">
+      Loading...
+    </div>
+
+
+    <hr style="border-color:#252b33;margin:20px 0;">
+
+
+    <h3>
+      Add stock to sale
+    </h3>
+
+
+    <div class="field">
+
+      <label>
+        Search stock
+      </label>
+
+      <input
+        id="saleStockSearch"
+        placeholder="Search your stock..."
+        oninput="loadSaleStock()"
+      >
+
+    </div>
+
+
+    <br>
+
+    <div id="saleStockResults">
+    </div>
+
+
+    <div class="actions">
+
+      <button class="btn primary" onclick="payCurrentSale()">
+        Mark as paid
+      </button>
+
+      <button class="btn danger" onclick="cancelCurrentSale()">
+        Cancel sale
+      </button>
+
+    </div>
+
+  </div>
+
+</div>
+
+
+<script>
+
+let currentSaleId = null;
+
+
+/* ---------------------------------------------------
+   NAVIGATION
+--------------------------------------------------- */
+
+function showPage(page, button) {
+
+  document.querySelectorAll(".page")
+    .forEach(p => p.classList.remove("active"));
+
+  document.getElementById(page)
+    .classList.add("active");
+
+  document.querySelectorAll(".nav button")
+    .forEach(b => b.classList.remove("active"));
+
+  if (button) {
+    button.classList.add("active");
+  }
+
+  if (page === "dashboard") {
+    loadDashboard();
+  }
+
+  if (page === "stock") {
+    loadStock();
+  }
+
+  if (page === "sales") {
+    loadSales();
+  }
+
+  if (page === "profit") {
+    loadMonthlyProfit();
+  }
+
+  if (page === "cex") {
+    loadCex();
+  }
+}
+
+
+/* ---------------------------------------------------
+   DASHBOARD
+--------------------------------------------------- */
+
+async function loadDashboard() {
+
+  try {
+
+    const response =
+      await fetch("/api/dashboard");
+
+    const data =
+      await response.json();
+
+    document.getElementById("dashStockUnits")
+      .textContent = data.stock.units;
+
+    document.getElementById("dashStockCost")
+      .textContent = money(data.stock.cost);
+
+    document.getElementById("dashCexValue")
+      .textContent = money(data.stock.cexCash);
+
+    document.getElementById("dashProfit")
+      .textContent = money(data.profit);
+
+    document.getElementById("dashSales")
+      .textContent = data.sales.sales;
+
+    document.getElementById("dashRevenue")
+      .textContent = money(data.sales.revenue);
+
+    document.getElementById("dashPotentialProfit")
+      .textContent =
+      money(
+        Number(data.stock.cexCash) -
+        Number(data.stock.cost)
+      );
+
+    const sales =
+      await fetch("/api/sales");
+
+    const salesData =
+      await sales.json();
+
+    document.getElementById("recentSales")
+      .innerHTML = renderRecentSales(
+        salesData.slice(0, 5)
+      );
+
+  } catch (error) {
+
+    console.error(error);
+
+  }
+}
+
+
+function renderRecentSales(sales) {
+
+  if (!sales.length) {
+
+    return `
+      <div class="muted">
+        No sales yet.
+      </div>
+    `;
+
+  }
+
+  return `
+
+    <div class="table-wrap">
+
+      <table>
+
+        <thead>
+
+          <tr>
+            <th>Sale</th>
+            <th>Date</th>
+            <th>Status</th>
+            <th>Revenue</th>
+            <th>Profit</th>
+          </tr>
+
+        </thead>
+
+        <tbody>
+
+          ${sales.map(s => `
+
+            <tr onclick="openSale(${s.id})" style="cursor:pointer">
+
+              <td>
+                Sale ${String(s.sale_number).padStart(3,"0")}
+              </td>
+
+              <td>
+                ${dateOnly(s.created_at)}
+              </td>
+
+              <td>
+                ${statusBadge(s.status)}
+              </td>
+
+              <td>
+                ${money(s.revenue)}
+              </td>
+
+              <td class="positive">
+                ${money(s.profit)}
+              </td>
+
+            </tr>
+
+          `).join("")}
+
+        </tbody>
+
+      </table>
+
+    </div>
+  `;
+}
+
+
+/* ---------------------------------------------------
+   STOCK
+--------------------------------------------------- */
+
+async function loadStock() {
+
+  const search =
+    document.getElementById("stockSearch")?.value || "";
+
+  const response =
+    await fetch(
+      "/api/stock?search=" +
+      encodeURIComponent(search)
+    );
+
+  const data =
+    await response.json();
+
+  document.getElementById("stockTable")
+    .innerHTML =
+    data.map(item => `
+
+      <tr>
+
+        <td>
+          <strong>${escapeHtml(item.name)}</strong>
+        </td>
+
+        <td>
+          ${escapeHtml(item.generation)}
+        </td>
+
+        <td>
+          ${escapeHtml(item.model_number || "—")}
+        </td>
+
+        <td>
+          ${escapeHtml(item.condition)}
+        </td>
+
+        <td>
+          ${item.quantity}
+        </td>
+
+        <td>
+          ${money(item.unit_cost)}
+        </td>
+
+        <td>
+          ${money(item.cex_cash_value)}
+        </td>
+
+        <td>
+          ${money(item.quantity * item.cex_cash_value)}
+        </td>
+
+      </tr>
+
+    `).join("");
+
+}
+
+
+/* ---------------------------------------------------
+   STOCK MODAL
+--------------------------------------------------- */
+
+function openStockModal() {
+
+  document
+    .getElementById("stockModal")
+    .classList.add("open");
+
+}
+
+
+function closeStockModal() {
+
+  document
+    .getElementById("stockModal")
+    .classList.remove("open");
+
+}
+
+
+async function addStock() {
+
+  const payload = {
+
+    name:
+      document.getElementById("stockName").value.trim(),
+
+    generation:
+      document.getElementById("stockGeneration").value.trim(),
+
+    model_number:
+      document.getElementById("stockModel").value.trim(),
+
+    condition:
+      document.getElementById("stockCondition").value,
+
+    quantity:
+      Number(
+        document.getElementById("stockQuantity").value
+      ),
+
+    unit_cost:
+      Number(
+        document.getElementById("stockCost").value
+      ),
+
+    cex_cash_value:
+      Number(
+        document.getElementById("stockCexCash").value
+      ),
+
+    cex_voucher_value:
+      Number(
+        document.getElementById("stockCexVoucher").value
+      )
+
+  };
+
+
+  const response =
+    await fetch("/api/stock", {
+
+      method: "POST",
+
+      headers: {
+        "Content-Type": "application/json"
+      },
+
+      body: JSON.stringify(payload)
+
+    });
+
+
+  const data =
+    await response.json();
+
+
+  if (data.error) {
+
+    alert(data.error);
+    return;
+
+  }
+
+
+  closeStockModal();
+
+  loadStock();
+
+  loadDashboard();
+
+}
+
+
+/* ---------------------------------------------------
+   CREATE SALE
+--------------------------------------------------- */
+
+async function createSale() {
+
+  const response =
+    await fetch("/api/sales", {
+
+      method: "POST",
+
+      headers: {
+        "Content-Type":
+          "application/json"
+      }
+
+    });
+
+
+  const data =
+    await response.json();
+
+
+  if (data.error) {
+
+    alert(data.error);
+    return;
+
+  }
+
+
+  await loadSales();
+
+  openSale(data.id);
+
+}
+
+
+/* ---------------------------------------------------
+   SALES LIST
+--------------------------------------------------- */
+
+async function loadSales() {
+
+  const response =
+    await fetch("/api/sales");
+
+  const sales =
+    await response.json();
+
+
+  if (!sales.length) {
+
+    document.getElementById("salesList")
+      .innerHTML = `
+
+        <div class="card">
+
+          <h3>
+            No sales yet
+          </h3>
+
+          <p class="muted">
+            Click Create sale to create Sale 001.
+          </p>
+
+        </div>
+      `;
+
+    return;
+
+  }
+
+
+  const grouped = {};
+
+
+  for (const sale of sales) {
+
+    const month =
+      new Date(sale.created_at)
+        .toLocaleDateString("en-GB", {
+          year: "numeric",
+          month: "long"
+        });
+
+    if (!grouped[month]) {
+      grouped[month] = [];
+    }
+
+    grouped[month].push(sale);
+
+  }
+
+
+  let html = "";
+
+
+  for (const month of Object.keys(grouped)) {
+
+    const list =
+      grouped[month];
+
+    const revenue =
+      list.reduce(
+        (sum, s) => sum + Number(s.revenue || 0),
+        0
+      );
+
+    const profit =
+      list.reduce(
+        (sum, s) => sum + Number(s.profit || 0),
+        0
+      );
+
+    const returns =
+      list.reduce(
+        (sum, s) => sum + Number(s.returned_units || 0),
+        0
+      );
+
+
+    html += `
+
+      <div class="card" style="margin-bottom:15px">
+
+        <div class="sale-header">
+
+          <div>
+
+            <h2>
+              ${escapeHtml(month)}
+            </h2>
+
+            <div class="muted">
+              ${list.length} sale${list.length === 1 ? "" : "s"}
+              · ${returns} return${returns === 1 ? "" : "s"}
+            </div>
+
+          </div>
+
+          <div style="text-align:right">
+
+            <div class="muted">
+              Net revenue
+            </div>
+
+            <strong style="font-size:20px">
+              ${money(revenue)}
+            </strong>
+
+            <div class="positive">
+              ${money(profit)} profit
+            </div>
+
+          </div>
+
+        </div>
+
+
+        <div class="table-wrap">
+
+          <table>
+
+            <thead>
+
+              <tr>
+
+                <th>Sale</th>
+                <th>Created</th>
+                <th>Paid</th>
+                <th>Status</th>
+                <th>Revenue</th>
+                <th>Profit</th>
+                <th></th>
+
+              </tr>
+
+            </thead>
+
+            <tbody>
+
+              ${list.map(s => `
+
+                <tr>
+
+                  <td>
+                    <strong>
+                      Sale ${String(s.sale_number).padStart(3,"0")}
+                    </strong>
+                  </td>
+
+                  <td>
+                    ${dateOnly(s.created_at)}
+                  </td>
+
+                  <td>
+                    ${s.paid_at ? dateOnly(s.paid_at) : "—"}
+                  </td>
+
+                  <td>
+                    ${statusBadge(s.status)}
+                  </td>
+
+                  <td>
+                    ${money(s.revenue)}
+                  </td>
+
+                  <td class="positive">
+                    ${money(s.profit)}
+                  </td>
+
+                  <td>
+
+                    <button
+                      class="btn"
+                      onclick="openSale(${s.id})"
+                    >
+                      View
+                    </button>
+
+                  </td>
+
+                </tr>
+
+              `).join("")}
+
+            </tbody>
+
+          </table>
+
+        </div>
+
+      </div>
+    `;
+
+  }
+
+
+  document.getElementById("salesList")
+    .innerHTML = html;
+
+}
+
+
+/* ---------------------------------------------------
+   SALE MODAL
+--------------------------------------------------- */
+
+async function openSale(id) {
+
+  currentSaleId = id;
+
+
+  const response =
+    await fetch("/api/sales/" + id);
+
+  const data =
+    await response.json();
+
+
+  if (data.error) {
+
+    alert(data.error);
+    return;
+
+  }
+
+
+  document.getElementById("saleModalNumber")
+    .textContent =
+    `Sale ${String(data.sale.sale_number).padStart(3,"0")}`;
+
+
+  document.getElementById("saleModalDate")
+    .innerHTML =
+    `Created ${dateOnly(data.sale.created_at)}
+     · ${statusBadge(data.sale.status)}`;
+
+
+  let total = 0;
+
+
+  const rows =
+    data.items.map(item => {
+
+      const activeQty =
+        item.quantity -
+        item.returned_quantity;
+
+
+      const itemTotal =
+        activeQty *
+        Number(item.sale_price_each);
+
+
+      total += itemTotal;
+
+
+      return `
+
+        <tr>
+
+          <td>
+            ${escapeHtml(item.name)}
+          </td>
+
+          <td>
+            ${escapeHtml(item.generation)}
+          </td>
+
+          <td>
+            ${escapeHtml(item.model_number || "—")}
+          </td>
+
+          <td>
+            ${activeQty}
+          </td>
+
+          <td>
+            ${money(item.sale_price_each)}
+          </td>
+
+          <td>
+            ${money(itemTotal)}
+          </td>
+
+          <td>
+
+            ${
+              data.sale.status !== "Paid"
+              ? `
+                <button
+                  class="btn danger"
+                  onclick="removeSaleItem(${item.id})"
+                >
+                  Remove
+                </button>
+              `
+              : `
+                <button
+                  class="btn"
+                  onclick="returnSaleItem(${item.id}, ${activeQty})"
+                >
+                  Return
+                </button>
+              `
+            }
+
+          </td>
+
+        </tr>
+
+      `;
+
+    }).join("");
+
+
+  document.getElementById("saleItems")
+    .innerHTML = `
+
+      <div class="table-wrap">
+
+        <table>
+
+          <thead>
+
+            <tr>
+
+              <th>Item</th>
+              <th>Generation</th>
+              <th>Model</th>
+              <th>Qty</th>
+              <th>Price</th>
+              <th>Total</th>
+              <th></th>
+
+            </tr>
+
+          </thead>
+
+          <tbody>
+
+            ${rows || `
+
+              <tr>
+
+                <td colspan="7" class="muted">
+                  No items yet.
+                </td>
+
+              </tr>
+
+            `}
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+
+      <div style="margin-top:15px;text-align:right">
+
+        <span class="muted">
+          Sale total
+        </span>
+
+        <strong style="font-size:22px;margin-left:8px">
+          ${money(total)}
+        </strong>
+
+      </div>
+
+    `;
+
+
+  if (data.sale.status === "Paid") {
+
+    document.querySelector(
+      "#saleModal .actions"
+    ).style.display = "none";
+
+  } else {
+
+    document.querySelector(
+      "#saleModal .actions"
+    ).style.display = "flex";
+
+  }
+
+
+  loadSaleStock();
+
+
+  document
+    .getElementById("saleModal")
+    .classList.add("open");
+
+}
+
+
+function closeSaleModal() {
+
+  document
+    .getElementById("saleModal")
+    .classList.remove("open");
+
+  currentSaleId = null;
+
+}
+
+
+/* ---------------------------------------------------
+   SALE STOCK SEARCH
+--------------------------------------------------- */
+
+async function loadSaleStock() {
+
+  const search =
+    document.getElementById("saleStockSearch")
+      .value || "";
+
+
+  if (!currentSaleId) {
+    return;
+  }
+
+
+  const response =
+    await fetch(
+      "/api/stock?search=" +
+      encodeURIComponent(search)
+    );
+
+
+  const stock =
+    await response.json();
+
+
+  document.getElementById("saleStockResults")
+    .innerHTML = stock.map(item => `
+
+      <div
+        class="card"
+        style="margin-bottom:8px;padding:12px"
+      >
+
+        <div
+          style="
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            gap:10px;
+          "
+        >
+
+          <div>
+
+            <strong>
+              ${escapeHtml(item.name)}
+            </strong>
+
+            <div class="muted">
+
+              ${escapeHtml(item.generation)}
+
+              ·
+
+              ${escapeHtml(item.model_number || "")}
+
+              ·
+
+              ${item.quantity} in stock
+
+            </div>
+
+          </div>
+
+
+          <button
+            class="btn"
+            onclick="addItemToSale(${item.id})"
+          >
+            Add
+          </button>
+
+        </div>
+
+      </div>
+
+    `).join("");
+
+}
+
+
+async function addItemToSale(stockId) {
+
+  const quantity =
+    prompt("How many units?", "1");
+
+  if (!quantity) {
+    return;
+  }
+
+
+  const price =
+    prompt("Sale price per unit (£)", "0");
+
+  if (price === null) {
+    return;
+  }
+
+
+  const response =
+    await fetch(
+      `/api/sales/${currentSaleId}/items`,
+      {
+
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json"
+        },
+
+        body: JSON.stringify({
+
+          stock_id: stockId,
+
+          quantity:
+            Number(quantity),
+
+          sale_price_each:
+            Number(price)
+
+        })
+
+      }
+    );
+
+
+  const data =
+    await response.json();
+
+
+  if (data.error) {
+
+    alert(data.error);
+    return;
+
+  }
+
+
+  openSale(currentSaleId);
+
+  loadDashboard();
+
+  loadStock();
+
+}
+
+
+async function removeSaleItem(itemId) {
+
+  if (!confirm(
+    "Remove this item from the sale and return it to available stock?"
+  )) {
+    return;
+  }
+
+
+  const response =
+    await fetch(
+      "/api/sales/items/" + itemId,
+      {
+        method: "DELETE"
+      }
+    );
+
+
+  const data =
+    await response.json();
+
+
+  if (data.error) {
+
+    alert(data.error);
+    return;
+
+  }
+
+
+  openSale(currentSaleId);
+
+  loadStock();
+
+}
+
+
+/* ---------------------------------------------------
+   PAY SALE
+--------------------------------------------------- */
+
+async function payCurrentSale() {
+
+  if (!confirm(
+    "Mark this sale as paid and completed?"
+  )) {
+    return;
+  }
+
+
+  const response =
+    await fetch(
+      `/api/sales/${currentSaleId}/pay`,
+      {
+        method: "POST"
+      }
+    );
+
+
+  const data =
+    await response.json();
+
+
+  if (data.error) {
+
+    alert(data.error);
+    return;
+
+  }
+
+
+  closeSaleModal();
+
+  loadSales();
+
+  loadDashboard();
+
+}
+
+
+/* ---------------------------------------------------
+   CANCEL
+--------------------------------------------------- */
+
+async function cancelCurrentSale() {
+
+  if (!confirm(
+    "Cancel this sale?"
+  )) {
+    return;
+  }
+
+
+  const response =
+    await fetch(
+      `/api/sales/${currentSaleId}/cancel`,
+      {
+        method: "POST"
+      }
+    );
+
+
+  const data =
+    await response.json();
+
+
+  if (data.error) {
+
+    alert(data.error);
+    return;
+
+  }
+
+
+  closeSaleModal();
+
+  loadSales();
+
+}
+
+
+/* ---------------------------------------------------
+   RETURNS
+--------------------------------------------------- */
+
+async function returnSaleItem(
+  itemId,
+  maximum
+) {
+
+  const quantity =
+    prompt(
+      `How many units are being returned? Maximum ${maximum}`,
+      "1"
+    );
+
+
+  if (!quantity) {
+    return;
+  }
+
+
+  const response =
+    await fetch(
+      `/api/sales/items/${itemId}/return`,
+      {
+
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json"
+        },
+
+        body: JSON.stringify({
+          quantity: Number(quantity)
+        })
+
+      }
+    );
+
+
+  const data =
+    await response.json();
+
+
+  if (data.error) {
+
+    alert(data.error);
+    return;
+
+  }
+
+
+  openSale(currentSaleId);
+
+  loadStock();
+
+  loadDashboard();
+
+}
+
+
+/* ---------------------------------------------------
+   MONTHLY PROFIT
+--------------------------------------------------- */
+
+async function loadMonthlyProfit() {
+
+  const response =
+    await fetch("/api/monthly-sales");
+
+  const data =
+    await response.json();
+
+
+  if (!data.length) {
+
+    document.getElementById("monthlyProfit")
+      .innerHTML =
+      `<div class="card muted">
+        No completed sales yet.
+      </div>`;
+
+    return;
+
+  }
+
+
+  document.getElementById("monthlyProfit")
+    .innerHTML =
+    data.map(month => `
+
+      <div class="card" style="margin-bottom:12px">
+
+        <div class="sale-header">
+
+          <div>
+
+            <h2>
+              ${month.month}
+            </h2>
+
+            <div class="muted">
+              ${month.sales}
+              sales
+              ·
+              ${month.returns}
+              returns
+            </div>
+
+          </div>
+
+
+          <div style="text-align:right">
+
+            <div>
+              Revenue:
+              <strong>
+                ${money(month.revenue)}
+              </strong>
+            </div>
+
+            <div class="positive">
+
+              Profit:
+              <strong>
+                ${money(month.profit)}
+              </strong>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    `).join("");
+
+}
+
+
+/* ---------------------------------------------------
+   CEX
+--------------------------------------------------- */
+
+async function loadCex() {
+
+  const response =
+    await fetch("/api/dashboard");
+
+  const data =
+    await response.json();
+
+
+  document.getElementById("cexCash")
+    .textContent =
+    money(data.stock.cexCash);
+
+
+  document.getElementById("cexVoucher")
+    .textContent =
+    money(data.stock.cexVoucher);
+
+
+  const stock =
+    await fetch("/api/stock");
+
+  const rows =
+    await stock.json();
+
+
+  document.getElementById("cexTable")
+    .innerHTML = `
+
+      <div class="table-wrap">
+
+        <table>
+
+          <thead>
+
+            <tr>
+
+              <th>Item</th>
+              <th>Qty</th>
+              <th>Cash each</th>
+              <th>Total cash</th>
+              <th>Voucher each</th>
+              <th>Total voucher</th>
+            </tr>
+
+          </thead>
+
+          <tbody>
+
+            ${rows.map(item => `
+
+              <tr>
+
+                <td>
+                  ${escapeHtml(item.name)}
+                  ·
+                  ${escapeHtml(item.generation)}
+                </td>
+
+                <td>
+                  ${item.quantity}
+                </td>
+
+                <td>
+                  ${money(item.cex_cash_value)}
+                </td>
+
+                <td>
+                  ${money(
+                    item.quantity *
+                    item.cex_cash_value
+                  )}
+                </td>
+
+                <td>
+                  ${money(item.cex_voucher_value)}
+                </td>
+
+                <td>
+                  ${money(
+                    item.quantity *
+                    item.cex_voucher_value
+                  )}
+                </td>
+
+              </tr>
+
+            `).join("")}
+
+          </tbody>
+
+        </table>
+
+      </div>
+    `;
+
+}
+
+
+/* ---------------------------------------------------
+   UTILITIES
+--------------------------------------------------- */
+
+function money(value) {
+
+  return new Intl.NumberFormat(
+    "en-GB",
+    {
+      style: "currency",
+      currency: "GBP"
+    }
+  ).format(Number(value) || 0);
+
+}
+
+
+function dateOnly(value) {
+
+  if (!value) {
+    return "—";
+  }
+
+  return new Date(value)
+    .toLocaleDateString(
+      "en-GB",
+      {
+        day: "2-digit",
+        month: "short",
+        year: "numeric"
+      }
+    );
+
+}
+
+
+function statusBadge(status) {
+
+  const cls =
+    String(status)
+      .toLowerCase()
+      .replace(/\s/g, "-");
+
+  return `
+    <span class="status ${cls}">
+      ${escapeHtml(status)}
+    </span>
+  `;
+
+}
+
+
+function escapeHtml(value) {
+
+  return String(value)
+    .replace(
+      /[&<>"']/g,
+      character => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;"
+      }[character])
+    );
+
+}
+
+
+/* ---------------------------------------------------
+   START
+--------------------------------------------------- */
+
+loadDashboard();
+
+</script>
+
+</body>
+</html>
